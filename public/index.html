@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Chat Rooms</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #1e1e2f;
+            color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #loginModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #loginModalContent {
+            background: #2a2a3f;
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 280px;
+        }
+
+        input, button {
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            outline: none;
+        }
+
+        button {
+            background: #4a90e2;
+            color: white;
+            cursor: pointer;
+        }
+
+        #chat {
+            display: none;
+            width: 450px;
+            background: #2a2a3f;
+            padding: 15px;
+            border-radius: 10px;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #messages {
+            height: 250px;
+            overflow-y: auto;
+            background: #1b1b2b;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .system { color: gray; font-style: italic; }
+    </style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginModal">
+    <div id="loginModalContent">
+        <h3>Login / Register</h3>
+        <input id="username" placeholder="Username">
+        <input id="password" type="password" placeholder="Password">
+        <button id="loginBtn">Enter</button>
+        <div id="error" style="color:red; font-size:12px;"></div>
+    </div>
+</div>
+
+<!-- CHAT -->
+<div id="chat">
+    <div>
+        <input id="room" placeholder="Room name">
+        <button id="join">Join</button>
+        <button id="leave">Lobby</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <input id="msgInput" placeholder="Message...">
+    <button id="send">Send</button>
+</div>
+
+<script>
+let token = null;
+let ws = null;
+let authed = false;
+
+const SERVER_IP = "10.0.0.9";
+
+const API = `http://${SERVER_IP}:8080`;
+
+
+// ---------------- LOGIN ----------------
+document.getElementById("loginBtn").onclick = async () => {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
+    const error = document.getElementById("error");
+
+    error.textContent = "";
+
+    if (!username || !password) {
+        error.textContent = "Fill all fields";
+        return;
+    }
+
+    try {
+        // register (ignore errors but log them)
+        const regRes = await fetch(`${API}/register`, {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ username, password })
+        });
+
+        const regText = await regRes.text();
+        console.log("REGISTER:", regText);
+
+        // login
+        const loginRes = await fetch(`${API}/login`, {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ username, password })
+        });
+
+        const text = await loginRes.text();
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            throw new Error("Server did not return JSON:\n" + text);
+        }
+
+        if (!loginRes.ok) {
+            error.textContent = data.error || "Wrong password or username already taken";
+            return;
+        }
+
+        token = data.token;
+
+        document.getElementById("loginModal").style.display = "none";
+        document.getElementById("chat").style.display = "flex";
+
+        connectWS();
+
+    } catch (err) {
+        console.error(err);
+        error.textContent = err.message;
+    }
+};
+
+// ---------------- WS ----------------
+function connectWS() {
+    ws = new WebSocket(`ws://${SERVER_IP}:8080`);
+
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "auth", token }));
+    };
+
+    ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        const box = document.getElementById("messages");
+
+        const div = document.createElement("div");
+
+        if (msg.type === "chat") {
+            div.textContent = `${msg.username}: ${msg.text}`;
+        } else if (msg.type === "system") {
+            div.textContent = msg.text;
+            div.className = "system";
+        } else {
+            return;
+        }
+
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    };
+}
+
+// ---------------- SEND ----------------
+document.getElementById("send").onclick = () => {
+    const input = document.getElementById("msgInput");
+
+    if (!ws || ws.readyState !== 1) return;
+    if (!input.value.trim()) return;
+
+    ws.send(JSON.stringify({
+        type: "chat",
+        text: input.value
+    }));
+
+    input.value = "";
+};
+
+// ---------------- ROOM ----------------
+document.getElementById("join").onclick = () => {
+    const room = document.getElementById("room").value;
+    if (ws) ws.send(JSON.stringify({ type: "join_room", room }));
+};
+
+document.getElementById("leave").onclick = () => {
+    if (ws) ws.send(JSON.stringify({ type: "join_room", room: "lobby" }));
+};
+</script>
+
+</body>
+</html>
