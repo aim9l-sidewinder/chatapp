@@ -100,9 +100,7 @@ let token = null;
 let ws = null;
 let authed = false;
 
-const SERVER_IP = "10.0.0.9";
-
-const API = `http://${SERVER_IP}:8080`;
+const API = "";
 
 
 // ---------------- LOGIN ----------------
@@ -120,7 +118,7 @@ document.getElementById("loginBtn").onclick = async () => {
 
     try {
         // register (ignore errors but log them)
-        const regRes = await fetch(`${API}/register`, {
+        const regRes = await fetch("/register", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
             body: JSON.stringify({ username, password })
@@ -130,7 +128,7 @@ document.getElementById("loginBtn").onclick = async () => {
         console.log("REGISTER:", regText);
 
         // login
-        const loginRes = await fetch(`${API}/login`, {
+        const loginRes = await fetch("/login", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
             body: JSON.stringify({ username, password })
@@ -165,7 +163,7 @@ document.getElementById("loginBtn").onclick = async () => {
 
 // ---------------- WS ----------------
 function connectWS() {
-    ws = new WebSocket(`ws://${SERVER_IP}:8080`);
+    ws = new WebSocket(`wss://${location.host}`);
 
     ws.onopen = () => {
         ws.send(JSON.stringify({ type: "auth", token }));
