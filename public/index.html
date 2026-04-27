@@ -93,6 +93,7 @@ const el = id => document.getElementById(id);
 
 let token = null;
 let ws = null;
+const protocol = location.protocol === "https:" ? "wss" : "ws";
 
 // ---------- AUTH ----------
 
@@ -149,7 +150,7 @@ function startChat() {
 }
 
 function connectWS() {
-  ws = new WebSocket(`ws://${location.host}`);
+  ws = new WebSocket(`${protocol}://${location.host}`);
 
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: "auth", token }));
