@@ -67,153 +67,87 @@
         .system { color: gray; font-style: italic; }
     </style>
 </head>
-
-<body>
-
-<!-- LOGIN -->
-<div id="loginModal">
-    <div id="loginModalContent">
-        <h3>Login / Register</h3>
-        <input id="username" placeholder="Username">
-        <input id="password" type="password" placeholder="Password">
-        <button id="loginBtn">Enter</button>
-        <div id="error" style="color:red; font-size:12px;"></div>
-    </div>
+<input id="pass" type="password" placeholder="password">
+<button onclick="login()">Login</button>
+<button onclick="register()">Register</button>
 </div>
 
-<!-- CHAT -->
 <div id="chat">
-    <div>
-        <input id="room" placeholder="Room name">
-        <button id="join">Join</button>
-        <button id="leave">Lobby</button>
-    </div>
-
-    <div id="messages"></div>
-
-    <input id="msgInput" placeholder="Message...">
-    <button id="send">Send</button>
+<input id="room" placeholder="room">
+<button onclick="joinRoom()">Join</button>
+<div id="messages"></div>
+<input id="msg">
+<button onclick="send()">Send</button>
 </div>
 
 <script>
-let token = null;
-let ws = null;
-let authed = false;
+let token, ws;
 
-const API = "";
+async function login() {
+  const username = user.value;
+  const password = pass.value;
 
+  const res = await fetch('/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ username, password })
+  });
 
-// ---------------- LOGIN ----------------
-document.getElementById("loginBtn").onclick = async () => {
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value.trim();
-    const error = document.getElementById("error");
+  const data = await res.json();
+  if (!res.ok) return alert(data.error);
 
-    error.textContent = "";
-
-    if (!username || !password) {
-        error.textContent = "Fill all fields";
-        return;
-    }
-
-    try {
-        // register (ignore errors but log them)
-        const regRes = await fetch("/register", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ username, password })
-        });
-
-        const regText = await regRes.text();
-        console.log("REGISTER:", regText);
-
-        // login
-        const loginRes = await fetch("/login", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ username, password })
-        });
-
-        const text = await loginRes.text();
-
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch {
-            throw new Error("Server did not return JSON:\n" + text);
-        }
-
-        if (!loginRes.ok) {
-            error.textContent = data.error || "Wrong password or username already taken";
-            return;
-        }
-
-        token = data.token;
-
-        document.getElementById("loginModal").style.display = "none";
-        document.getElementById("chat").style.display = "flex";
-
-        connectWS();
-
-    } catch (err) {
-        console.error(err);
-        error.textContent = err.message;
-    }
-};
-
-// ---------------- WS ----------------
-function connectWS() {
-    ws = new WebSocket(`wss://${location.host}`);
-
-    ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "auth", token }));
-    };
-
-    ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        const box = document.getElementById("messages");
-
-        const div = document.createElement("div");
-
-        if (msg.type === "chat") {
-            div.textContent = `${msg.username}: ${msg.text}`;
-        } else if (msg.type === "system") {
-            div.textContent = msg.text;
-            div.className = "system";
-        } else {
-            return;
-        }
-
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
-    };
+  token = data.token;
+  start();
 }
 
-// ---------------- SEND ----------------
-document.getElementById("send").onclick = () => {
-    const input = document.getElementById("msgInput");
+async function register() {
+  await fetch('/register', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ username:user.value, password:pass.value })
+  });
+  alert('Registered, now login');
+}
 
-    if (!ws || ws.readyState !== 1) return;
-    if (!input.value.trim()) return;
+function start() {
+  login.style.display='none';
+  chat.style.display='flex';
 
-    ws.send(JSON.stringify({
-        type: "chat",
-        text: input.value
-    }));
+  ws = new WebSocket(`ws://${location.host}`);
 
-    input.value = "";
-};
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type:'auth', token }));
+  };
 
-// ---------------- ROOM ----------------
-document.getElementById("join").onclick = () => {
-    const room = document.getElementById("room").value;
-    if (ws) ws.send(JSON.stringify({ type: "join_room", room }));
-};
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
 
-document.getElementById("leave").onclick = () => {
-    if (ws) ws.send(JSON.stringify({ type: "join_room", room: "lobby" }));
-};
+    if (msg.type === 'history') {
+      messages.innerHTML='';
+      msg.messages.forEach(addMsg);
+    }
+
+    if (msg.type === 'chat') addMsg(msg);
+    if (msg.type === 'system') addMsg(msg);
+  };
+
+  ws.onclose = () => setTimeout(start, 2000);
+}
+
+function addMsg(m) {
+  const div = document.createElement('div');
+  div.textContent = m.username ? `${m.username}: ${m.text}` : m.text;
+  messages.appendChild(div);
+}
+
+function send() {
+  if (!msg.value) return;
+  ws.send(JSON.stringify({ type:'chat', text: msg.value }));
+  msg.value='';
+}
+
+function joinRoom() {
+  if (!room.value) return;
+  ws.send(JSON.stringify({ type:'join_room', room: room.value }));
+}
 </script>
-
 </body>
 </html>
