@@ -1,3 +1,8 @@
+// ============================
+// FRONTEND (public/index.html)
+// ============================
+
+/*
 <!DOCTYPE html>
 <html>
 <head>
@@ -74,4 +79,142 @@ button {
     </div>
 
     <div id="messages"></div>
+
+    <div class="row">
+      <input id="messageInput" placeholder="Message...">
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const el = id => document.getElementById(id);
+
+let token = null;
+let ws = null;
+
+// ---------- AUTH ----------
+
+async function login() {
+  const username = el("username").value.trim();
+  const password = el("password").value.trim();
+
+  if (!username || !password) return showError("Fill all fields");
+
+  const res = await fetch("/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+
+  const data = await res.json();
+  if (!res.ok) return showError(data.error);
+
+  token = data.token;
+  startChat();
+}
+
+async function register() {
+  const username = el("username").value.trim();
+  const password = el("password").value.trim();
+
+  if (!username || !password) return showError("Fill all fields");
+
+  const res = await fetch("/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+
+  const data = await res.json();
+  if (!res.ok) return showError(data.error);
+
+  showError("Registered! Now login.", "green");
+}
+
+function showError(msg, color="red") {
+  const err = el("error");
+  err.style.color = color;
+  err.textContent = msg;
+}
+
+// ---------- CHAT ----------
+
+function startChat() {
+  el("loginView").classList.add("hidden");
+  el("chatView").classList.remove("hidden");
+
+  connectWS();
+}
+
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: "auth", token }));
+  };
+
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === "history") {
+      el("messages").innerHTML = "";
+      msg.messages.forEach(addMessage);
+    }
+
+    if (msg.type === "chat") addMessage(msg);
+    if (msg.type === "system") addMessage(msg, true);
+  };
+
+  ws.onclose = () => {
+    setTimeout(connectWS, 2000);
+  };
+}
+
+function addMessage(msg, system=false) {
+  const div = document.createElement("div");
+
+  if (system) {
+    div.textContent = msg.text;
+    div.className = "system";
+  } else {
+    div.textContent = `${msg.username}: ${msg.text}`;
+  }
+
+  const box = el("messages");
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendMessage() {
+  const input = el("messageInput");
+  const text = input.value.trim();
+
+  if (!text || !ws || ws.readyState !== 1) return;
+
+  ws.send(JSON.stringify({ type: "chat", text }));
+  input.value = "";
+}
+
+function joinRoom() {
+  const room = el("roomInput").value.trim();
+  if (!room) return;
+
+  ws.send(JSON.stringify({ type: "join_room", room }));
+}
+
+// ---------- EVENTS ----------
+
+el("loginBtn").onclick = login;
+el("registerBtn").onclick = register;
+el("sendBtn").onclick = sendMessage;
+el("joinBtn").onclick = joinRoom;
+
+el("messageInput").addEventListener("keypress", e => {
+  if (e.key === "Enter") sendMessage();
+});
+
+</script>
+</body>
 </html>
