@@ -1,153 +1,77 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebSocket Chat Rooms</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #1e1e2f;
-            color: #eee;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
+<meta charset="UTF-8">
+<title>Chat</title>
+<style>
+body {
+  font-family: Arial;
+  background:#1e1e2f;
+  color:#eee;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  margin:0;
+}
 
-        #loginModal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+#app {
+  width:420px;
+  background:#2a2a3f;
+  padding:15px;
+  border-radius:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
 
-        #loginModalContent {
-            background: #2a2a3f;
-            padding: 20px;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 280px;
-        }
+#messages {
+  height:260px;
+  overflow-y:auto;
+  background:#111;
+  padding:10px;
+  border-radius:8px;
+}
 
-        input, button {
-            padding: 10px;
-            border-radius: 6px;
-            border: none;
-            outline: none;
-        }
+input, button {
+  padding:10px;
+  border:none;
+  border-radius:6px;
+}
 
-        button {
-            background: #4a90e2;
-            color: white;
-            cursor: pointer;
-        }
+button {
+  background:#4a90e2;
+  color:white;
+  cursor:pointer;
+}
 
-        #chat {
-            display: none;
-            width: 450px;
-            background: #2a2a3f;
-            padding: 15px;
-            border-radius: 10px;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        #messages {
-            height: 250px;
-            overflow-y: auto;
-            background: #1b1b2b;
-            padding: 10px;
-            border-radius: 8px;
-        }
-
-        .system { color: gray; font-style: italic; }
-    </style>
+.row { display:flex; gap:5px; }
+.system { color:gray; font-style:italic; }
+.hidden { display:none; }
+</style>
 </head>
-<input id="pass" type="password" placeholder="password">
-<button onclick="login()">Login</button>
-<button onclick="register()">Register</button>
-</div>
+<body>
 
-<div id="chat">
-<input id="room" placeholder="room">
-<button onclick="joinRoom()">Join</button>
-<div id="messages"></div>
-<input id="msg">
-<button onclick="send()">Send</button>
-</div>
+<div id="app">
 
-<script>
-let token, ws;
+  <!-- LOGIN -->
+  <div id="loginView">
+    <h3>Login</h3>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <div class="row">
+      <button id="loginBtn">Login</button>
+      <button id="registerBtn">Register</button>
+    </div>
+    <div id="error" style="color:red;font-size:12px;"></div>
+  </div>
 
-async function login() {
-  const username = user.value;
-  const password = pass.value;
+  <!-- CHAT -->
+  <div id="chatView" class="hidden">
+    <div class="row">
+      <input id="roomInput" placeholder="Room">
+      <button id="joinBtn">Join</button>
+    </div>
 
-  const res = await fetch('/login', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ username, password })
-  });
-
-  const data = await res.json();
-  if (!res.ok) return alert(data.error);
-
-  token = data.token;
-  start();
-}
-
-async function register() {
-  await fetch('/register', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ username:user.value, password:pass.value })
-  });
-  alert('Registered, now login');
-}
-
-function start() {
-  login.style.display='none';
-  chat.style.display='flex';
-
-  ws = new WebSocket(`ws://${location.host}`);
-
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ type:'auth', token }));
-  };
-
-  ws.onmessage = e => {
-    const msg = JSON.parse(e.data);
-
-    if (msg.type === 'history') {
-      messages.innerHTML='';
-      msg.messages.forEach(addMsg);
-    }
-
-    if (msg.type === 'chat') addMsg(msg);
-    if (msg.type === 'system') addMsg(msg);
-  };
-
-  ws.onclose = () => setTimeout(start, 2000);
-}
-
-function addMsg(m) {
-  const div = document.createElement('div');
-  div.textContent = m.username ? `${m.username}: ${m.text}` : m.text;
-  messages.appendChild(div);
-}
-
-function send() {
-  if (!msg.value) return;
-  ws.send(JSON.stringify({ type:'chat', text: msg.value }));
-  msg.value='';
-}
-
-function joinRoom() {
-  if (!room.value) return;
-  ws.send(JSON.stringify({ type:'join_room', room: room.value }));
-}
-</script>
-</body>
+    <div id="messages"></div>
 </html>
